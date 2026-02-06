@@ -1,0 +1,10 @@
+Debug/
+Release/
+
+# CubeIDE / Eclipse
+.settings/
+*.launch
+
+# OS junk
+.DS_Store
+Thumbs.db
