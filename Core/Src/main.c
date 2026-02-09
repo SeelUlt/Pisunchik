@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include "icm20948_hal.h"
 #include "madgwick.h"
+#include <math.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -357,6 +359,41 @@ void fast_check(void)
 	} else {
 	    printf("SYSCLK source: UNKNOWN\r\n");
 	}
+
+}
+
+void six_dof_calibrate(void){
+	AxisDataRaw_t six_raw_accel;
+	AxisDataScaled_t six_scaled_accel;
+	float x_counter, y_counter, z_counter = 0.0f;
+	for (int i = 0; i < 300; i++){
+		if (ICM20948_ReadAccel(&six_raw_accel) == HAL_OK){
+			if (ICM20948_ScaleAccel(&six_raw_accel, &six_scaled_accel) == HAL_OK){
+				x_counter += six_scaled_accel.x;
+				y_counter += six_scaled_accel.y;
+				z_counter += six_scaled_accel.z;
+				HAL_Delay(2);
+				if (i % 30 == 0){printf("%d\r\n", i/3);}
+			}
+
+		}
+	}
+	x_counter /= 300.0f;
+	y_counter /= 300.0f;
+	z_counter /= 300.0f;
+
+	int x_int = (int)x_counter;
+	int x_frac = (int)(fabsf(x_counter - x_int) * 10000);
+
+	int y_int = (int)y_counter;
+	int y_frac = (int)(fabsf(y_counter - y_int) * 10000);
+
+	int z_int = (int)z_counter;
+	int z_frac = (int)(fabsf(z_counter - z_int) * 10000);
+
+	printf("x average = %d.%04d\r\n", x_int, x_frac);
+	printf("y average = %d.%04d\r\n", y_int, y_frac);
+	printf("z average = %d.%04d\r\n", z_int, z_frac);
 
 }
 /* USER CODE END 4 */
