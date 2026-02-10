@@ -7,99 +7,153 @@
 static float accel_ratio = 2048.0f;
 static float gyro_ratio = 16.4f;
 
-static HAL_StatusTypeDef WriteReg(uint8_t bank, uint8_t reg, uint8_t value)
+// helper: выбор банка (записываем в регистр 0x7F в bank 0)
+static HAL_StatusTypeDef ICM20948_SelectBank(uint8_t bank)
 {
     uint8_t tx[2];
+    HAL_StatusTypeDef status;
 
-    if (bank != 0) {
-        tx[0] = 0x7F;
-        tx[1] = bank;
-        ICM_CS_LOW();
-        HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
-        ICM_CS_HIGH();
-    }
-
-    tx[0] = reg & 0x7F;
-    tx[1] = value;
+    // регистр BANK_SEL находится в bank 0, адрес 0x7F
+    tx[0] = 0x7F & 0x7F; // адрес для записи (MSB=0 -> запись)
+    tx[1] = bank & 0x07; // банк 0..3 (лишние биты безопасно отрезаем)
 
     ICM_CS_LOW();
-    HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
+    status = HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
     ICM_CS_HIGH();
 
+    //HAL_Delay(1); // небольшая пауза, чтобы банк установился
     return status;
 }
 
-static HAL_StatusTypeDef ReadReg(uint8_t bank, uint8_t reg, uint8_t *value)
+HAL_StatusTypeDef WriteReg(uint8_t bank, uint8_t reg, uint8_t value)
 {
-    if (bank != 0) WriteReg(0, 0x7F, bank);
+    HAL_StatusTypeDef status;
 
-    uint8_t addr = reg | 0x80;
+    // переключаемся в нужный банк, если нужно
+    status = ICM20948_SelectBank(bank);
+    if (status != HAL_OK) return status;
+
+    uint8_t tx[2];
+    tx[0] = reg & 0x7F; // адрес для записи (MSB=0)
+    tx[1] = value;
 
     ICM_CS_LOW();
-    HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
+    status = HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
+    ICM_CS_HIGH();
+
+    //HAL_Delay(1);
+    return status;
+}
+
+HAL_StatusTypeDef ReadReg(uint8_t bank, uint8_t reg, uint8_t *value)
+{
+    HAL_StatusTypeDef status;
+
+    // переключаемся в нужный банк
+    status = ICM20948_SelectBank(bank);
+    if (status != HAL_OK) return status;
+
+    uint8_t addr = (reg & 0x7F) | 0x80; // MSB=1 -> чтение
+    ICM_CS_LOW();
+    status = HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
     if (status == HAL_OK) {
         status = HAL_SPI_Receive(&hspi1, value, 1, HAL_MAX_DELAY);
     }
     ICM_CS_HIGH();
 
-    WriteReg(0, 0x7F, 0);
+    // вернёмся в bank 0 для предсказуемости
+    ICM20948_SelectBank(0);
+
     return status;
 }
 
 static HAL_StatusTypeDef ReadMulti(uint8_t bank, uint8_t reg, uint8_t *data, uint16_t len)
 {
-    if (bank != 0) WriteReg(0, 0x7F, bank);
+    HAL_StatusTypeDef status;
 
-    uint8_t addr = reg | 0x80;
+    status = ICM20948_SelectBank(bank);
+    if (status != HAL_OK) return status;
 
+    uint8_t addr = (reg & 0x7F) | 0x80;
     ICM_CS_LOW();
-    HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
+    status = HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
     if (status == HAL_OK) {
         status = HAL_SPI_Receive(&hspi1, data, len, HAL_MAX_DELAY);
     }
     ICM_CS_HIGH();
 
-    WriteReg(0, 0x7F, 0);
+    ICM20948_SelectBank(0);
+
     return status;
 }
+
+
 // Пихаем первым аргументов значение из enum accel_range_t,
 // вторым аргументом пихаем значение из emun gyro_range_t
 HAL_StatusTypeDef ICM20948_Init(accel_range_t accel, gyro_range_t gyro)
-{	uint8_t accel_range = 0x06;
-	uint8_t gyro_range = 0x06;
+{
+    uint8_t accel_range = 0x18;  // Будет сдвинуто в биты 4:3
+    uint8_t gyro_range = 0x18;   // Будет сдвинуто в биты 4:3
     uint8_t id;
+
+    // Проверяем WHO_AM_I
     if (ReadReg(0, 0x00, &id) != HAL_OK || id != 0xEA) {
         return HAL_ERROR;
     }
 
+    // --- Сброс ---
     WriteReg(0, 0x06, 0x80);  // reset
     HAL_Delay(100);
 
+    // --- Авто такт, отключение sleep ---
     WriteReg(0, 0x06, 0x01);  // auto clock, wake up
-    WriteReg(0, 0x07, 0x00);  // enable accel + gyro
+    HAL_Delay(100);
 
+    // --- Настройка диапазонов ---
+    // выбираем значения диапазона
     switch(accel){
-    case ACCEL_2G: accel_range = 0x00; accel_ratio = 16384.0f; break;
-    case ACCEL_4G: accel_range = 0x02; accel_ratio = 8192.0f; break;
-    case ACCEL_8G: accel_range = 0x04; accel_ratio = 4096.0f; break;
-    case ACCEL_16G: accel_range = 0x06; accel_ratio = 2048.0f; break;
-    default: accel_range = 0x06; accel_ratio = 2048.0f; break;
+        case ACCEL_2G:  accel_range = 0x00; accel_ratio = 16384.0f; break;  // биты 4:3 = 00
+        case ACCEL_4G:  accel_range = 0x08; accel_ratio = 8192.0f;  break;  // биты 4:3 = 01
+        case ACCEL_8G:  accel_range = 0x10; accel_ratio = 4096.0f;  break;  // биты 4:3 = 10
+        case ACCEL_16G: accel_range = 0x18; accel_ratio = 2048.0f;  break;  // биты 4:3 = 11
+        default: accel_range = 0x18; accel_ratio = 2048.0f; break;
     }
 
     switch(gyro){
-    case GYRO_250DPS: gyro_range = 0x00; gyro_ratio = 131.0f; break;
-    case GYRO_500DPS: gyro_range = 0x02; gyro_ratio = 65.5f; break;
-    case GYRO_1000DPS: gyro_range = 0x04; gyro_ratio = 32.8f; break;
-    case GYRO_2000DPS: gyro_range = 0x06; gyro_ratio = 16.4f; break;
-    default: gyro_range = 0x06; gyro_ratio = 16.4f; break;
+        case GYRO_250DPS:  gyro_range = 0x00; gyro_ratio = 131.0f;  break;  // биты 4:3 = 00
+        case GYRO_500DPS:  gyro_range = 0x08; gyro_ratio = 65.5f;   break;  // биты 4:3 = 01
+        case GYRO_1000DPS: gyro_range = 0x10; gyro_ratio = 32.8f;   break;  // биты 4:3 = 10
+        case GYRO_2000DPS: gyro_range = 0x18; gyro_ratio = 16.4f;   break;  // биты 4:3 = 11
+        default: gyro_range = 0x18; gyro_ratio = 16.4f; break;
     }
 
-    // Настройки (можно потом доработать)
-    WriteReg(2, 0x01, gyro_range);
-    WriteReg(2, 0x14, accel_range);
+    // --- Отключаем сенсоры перед записью диапазонов ---
+    WriteReg(0, 0x07, 0x3F); // PWR_MGMT_2: отключаем все аксель и гироскоп
+    HAL_Delay(50);
+
+    // --- Запись диапазонов ---
+    uint8_t tmp;
+
+    // Гироскоп
+    ReadReg(2, 0x01, &tmp);
+    tmp = (tmp & ~0x18) | gyro_range;  // Маска 0x18 = биты 4:3
+    WriteReg(2, 0x01, tmp);
+
+    // Акселерометр
+    ReadReg(2, 0x14, &tmp);
+    tmp = (tmp & ~0x18) | accel_range;  // Маска 0x18 = биты 4:3
+    WriteReg(2, 0x14, tmp);
+
+    HAL_Delay(50);
+
+    // --- Включаем сенсоры ---
+    WriteReg(0, 0x07, 0x00); // PWR_MGMT_2: включаем все аксель + гироскоп
+    HAL_Delay(50);
 
     return HAL_OK;
 }
+
+
 // в функции типа Read пихаем аргументом структуру типа AxisDataRaw_t
 // и она заполняется данными
 HAL_StatusTypeDef ICM20948_ReadAccel(AxisDataRaw_t *accel)

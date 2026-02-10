@@ -64,5 +64,7 @@ HAL_StatusTypeDef ICM20948_CalibrateIMU(AxisCalib_t *accelCal, AxisCalib_t *gyro
  *        out = (in - offset) * scale
  */
 AxisDataScaled_t Axis_ApplyCalibration(AxisDataScaled_t in, const AxisCalib_t *cal);
+HAL_StatusTypeDef WriteReg(uint8_t bank, uint8_t reg, uint8_t value);
+HAL_StatusTypeDef ReadReg(uint8_t bank, uint8_t reg, uint8_t *value);
 
 #endif
