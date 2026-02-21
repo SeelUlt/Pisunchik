@@ -1,0 +1,15 @@
+../Core/Src/madgwick.c:8:10:get_time_us	8	static
+../Core/Src/madgwick.c:12:14:calc_3D_norm	32	static
+../Core/Src/madgwick.c:18:14:calc_4D_norm	32	static
+../Core/Src/madgwick.c:24:15:normalize_quat	48	static
+../Core/Src/madgwick.c:41:14:calc_beta_ratio	32	static
+../Core/Src/madgwick.c:49:22:calc_expected_accel_vector	48	static
+../Core/Src/madgwick.c:70:22:calc_accel_vector_error	56	static
+../Core/Src/madgwick.c:90:22:angle_speed_correction	48	static
+../Core/Src/madgwick.c:100:15:calc_d_quat	64	static
+../Core/Src/madgwick.c:115:15:calc_current_quat	40	static
+../Core/Src/madgwick.c:125:16:calc_euler_angles_fixed	56	static
+../Core/Src/madgwick.c:149:16:calc_euler_angles	56	static
+../Core/Src/madgwick.c:182:6:madgwick_init	16	static
+../Core/Src/madgwick.c:203:6:madgwick_run	144	static
+../Core/Src/madgwick.c:280:9:madgwick_get_euler	40	static

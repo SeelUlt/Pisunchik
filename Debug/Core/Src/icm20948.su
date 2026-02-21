@@ -1,0 +1,13 @@
+../Core/Src/icm20948.c:17:13:icm20948_init	24	static
+../Core/Src/icm20948.c:113:19:who_am_i	16	static
+../Core/Src/icm20948.c:121:13:cs_low	8	static
+../Core/Src/icm20948.c:125:13:cs_high	8	static
+../Core/Src/icm20948.c:129:25:select_bank	24	static
+../Core/Src/icm20948.c:152:25:write_once_reg	32	static
+../Core/Src/icm20948.c:177:25:read_once_reg	24	static
+../Core/Src/icm20948.c:191:25:read_multi_reg	32	static
+../Core/Src/icm20948.c:226:6:icm20948_accel_read	24	static
+../Core/Src/icm20948.c:243:6:icm20948_gyro_read	24	static
+../Core/Src/icm20948.c:259:6:icm20948_scale_accel	16	static
+../Core/Src/icm20948.c:266:6:icm20948_scale_gyro	24	static
+../Core/Src/icm20948.c:275:15:accel_six_dof_calib	64	static
